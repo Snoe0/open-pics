@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useLibrary } from '@/components/library/LibraryProvider'
 import { FilterRow } from '@/components/library/FilterRow'
 import { SearchIcon, UploadIcon } from '@/components/layout/icons'
@@ -36,15 +38,32 @@ const UploadToggle = () => {
   )
 }
 
+const BackToLibraryLink = () => (
+  <Link
+    href="/"
+    className="flex shrink-0 items-center gap-2 border border-border px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted transition-colors hover:border-border-strong hover:text-foreground"
+  >
+    <span aria-hidden>←</span>
+    Back to library
+  </Link>
+)
+
 export const TopBar = () => {
   const { writable } = useLibrary()
+  const onTeamPage = usePathname() === '/team'
   return (
-    <header className="shrink-0 border-b border-border bg-background">
-      <div className="flex h-14 items-center gap-3 px-4">
-        <SearchInput />
-        {writable && <UploadToggle />}
+    <header className={`shrink-0 bg-background ${onTeamPage ? '' : 'border-b border-border'}`}>
+      <div className="flex h-14 items-center gap-3 border-b border-border px-4">
+        {onTeamPage ? (
+          <BackToLibraryLink />
+        ) : (
+          <>
+            <SearchInput />
+            {writable && <UploadToggle />}
+          </>
+        )}
       </div>
-      <FilterRow />
+      {!onTeamPage && <FilterRow />}
     </header>
   )
 }

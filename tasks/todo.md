@@ -91,8 +91,11 @@ Locked decisions: DB log + GitHub Issues capture; fixes by cloud Claude Code (cl
 - [x] README section documenting the whole loop + setup steps
 
 ### Review (Feature 2)
-Built 2026-08-02. tsc + build clean (20 routes). Injection-safe workflow (only numeric issue number interpolated; `auto-error` label gate).
-**User setup remaining:** (1) run supabase/errors.sql; (2) GITHUB_TOKEN + GITHUB_REPO in .env.local; (3) install Claude GitHub App on the repo; (4) `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN`; (5) enable "Allow GitHub Actions to create and approve pull requests" in repo Settings → Actions → General (my API attempt to set this was permission-blocked).
+Built 2026-08-02. tsc + build clean. Injection-safe workflow (only numeric issue number interpolated; `auto-error` label gate).
+
+**Revised same day (user request):** dropped the web surface — removed `/errors` page, ErrorsManager, status API, and the `errors` DB table. GitHub Issues are now the sole tracker: `trackError` dedupes by checking open `auto-error` issues for the fingerprint (plus an in-memory cache) and files directly via the GitHub API. `GITHUB_TOKEN` is STILL required in .env.local — the app (not the cloud workflow) files the issues.
+
+**User setup remaining:** (1) GITHUB_TOKEN + GITHUB_REPO in .env.local; (2) install Claude GitHub App on the repo; (3) `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN`; (4) enable "Allow GitHub Actions to create and approve pull requests" in repo Settings → Actions → General (my API attempt to set this was permission-blocked).
 
 ---
 
@@ -101,9 +104,9 @@ Built 2026-08-02. tsc + build clean (20 routes). Injection-safe workflow (only n
 All implementation via subagents (one per track). Facts from codebase exploration baked into each item.
 
 ### Track 1 — Team view exit + hide search bar
-- [ ] `TopBar.tsx`: use `usePathname()`; on `/team` hide SearchInput/UploadToggle/FilterRow and instead show a "← Back to library" link (`next/link` → `/`)
-- [ ] `Sidebar.tsx`: make the VAULT wordmark a `Link` to `/`
-- [ ] `Sidebar.tsx` + `FolderTree.tsx`: when on `/team`, nav/folder clicks must `router.push('/')` in addition to `setSelection(...)` (currently they only mutate state, leaving you stuck on /team)
+- [x] `TopBar.tsx`: on `/team` hide SearchInput/UploadToggle/FilterRow; "← Back to library" link shown instead
+- [x] `Sidebar.tsx`: VAULT wordmark is a `Link` to `/`
+- [x] Shared `useSelectFolder` hook in `LibraryProvider.tsx` — nav/folder clicks `router.push('/')` from any non-`/` page (covers /team and /errors)
 
 ### Track 2 — Drag assets into folders (incl. multi-drag)
 - [ ] `AssetGrid.tsx`: make `AssetCard` draggable; `dataTransfer` carries the dragged asset id(s) (all selected ids when dragging a selected card)
@@ -123,8 +126,8 @@ All implementation via subagents (one per track). Facts from codebase exploratio
 - [ ] Add a concurrency cap (~4) — current code hashes whole files in memory and uploads all in parallel, which will choke on large folders
 
 ### Track 5 — Askew 1px cross (screenshot)
-- [ ] Root cause: sidebar wordmark row (`Sidebar.tsx:49`, `h-14 border-b`) puts its line at y 55–56; main area line is FilterRow's `border-t` (`FilterRow.tsx:79`) at y 56–57
-- [ ] Fix: add `border-b border-border` to the TopBar `h-14` row and remove FilterRow's `border-t` — both lines land at y 55–56
+- [x] Root cause: sidebar wordmark row border at y 55–56 vs FilterRow `border-t` at y 56–57
+- [x] Fixed: `border-b` moved onto TopBar `h-14` row, FilterRow `border-t` removed; on /team the outer header drops its own border-b to avoid a 2px double line
 
 ### Verification
 - [ ] `npx tsc --noEmit` + `next build` clean

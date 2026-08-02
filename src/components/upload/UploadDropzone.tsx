@@ -1,17 +1,30 @@
 'use client'
 
 import { useCallback, useRef, useState, type DragEvent } from 'react'
+import { useLibrary } from '@/components/library/LibraryProvider'
+import {
+  collectDroppedFiles,
+  createTaskQueue,
+  dirKey,
+  ensureFolderHierarchy,
+  filesFromFileList,
+  uniqueDirPaths,
+  type IncomingFile,
+} from './folderUpload'
 
 type ItemStatus = 'hashing' | 'uploading' | 'processing' | 'done' | 'duplicate' | 'skipped' | 'error'
 
 type UploadItem = {
   id: string
   file: File
+  folderId: string | null
   status: ItemStatus
   contentHash: string | null
   duplicateOf: string | null
   error: string | null
 }
+
+const UPLOAD_CONCURRENCY = 4
 
 const STATUS_LABEL: Record<ItemStatus, string> = {
   hashing: 'Hashing',
@@ -40,9 +53,12 @@ export const UploadDropzone = ({
   folderId: string | null
   onUploaded: () => void
 }) => {
+  const { refreshFolders } = useLibrary()
   const [items, setItems] = useState<UploadItem[]>([])
   const [dragActive, setDragActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+  const queueRef = useRef(createTaskQueue(UPLOAD_CONCURRENCY))
 
   const updateItem = useCallback((id: string, patch: Partial<UploadItem>) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)))
@@ -54,13 +70,13 @@ export const UploadDropzone = ({
       await putFileToS3(item.file, uploadUrl)
 
       updateItem(item.id, { status: 'processing' })
-      const asset = await completeUpload(item.file, contentHash, s3Key, folderId)
+      const asset = await completeUpload(item.file, contentHash, s3Key, item.folderId)
 
       requestAiTagging(asset.id)
       updateItem(item.id, { status: 'done' })
       onUploaded()
     },
-    [folderId, onUploaded, updateItem]
+    [onUploaded, updateItem]
   )
 
   const processFile = useCallback(
@@ -70,7 +86,7 @@ export const UploadDropzone = ({
         const contentHash = item.contentHash ?? (await sha256Hex(item.file))
         updateItem(item.id, { contentHash })
 
-        const prepared = await prepareUpload(item.file, contentHash, folderId, force)
+        const prepared = await prepareUpload(item.file, contentHash, item.folderId, force)
         if ('duplicate' in prepared) {
           updateItem(item.id, { status: 'duplicate', duplicateOf: prepared.duplicate.filename })
           return
@@ -81,26 +97,62 @@ export const UploadDropzone = ({
         updateItem(item.id, { status: 'error', error: err instanceof Error ? err.message : 'Upload failed' })
       }
     },
-    [folderId, updateItem, uploadAndComplete]
+    [updateItem, uploadAndComplete]
+  )
+
+  const startUploads = useCallback(
+    (incoming: IncomingFile[], idByDir: Map<string, string>) => {
+      const newItems = incoming.map(({ file, dirPath }) =>
+        toUploadItem(file, idByDir.get(dirKey(dirPath)) ?? folderId)
+      )
+      setItems((prev) => [...prev, ...newItems])
+      newItems.forEach((item) => queueRef.current.run(() => processFile(item, false)))
+    },
+    [folderId, processFile]
+  )
+
+  const reportFolderFailure = useCallback(
+    (incoming: IncomingFile[], err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Folder creation failed'
+      const failedItems = incoming.map(({ file }) => ({
+        ...toUploadItem(file, folderId),
+        status: 'error' as ItemStatus,
+        error: message,
+      }))
+      setItems((prev) => [...prev, ...failedItems])
+    },
+    [folderId]
+  )
+
+  const acceptIncoming = useCallback(
+    async (incoming: IncomingFile[]) => {
+      if (incoming.length === 0) return
+      try {
+        const { idByDir, createdAny } = await ensureFolderHierarchy(uniqueDirPaths(incoming), folderId)
+        if (createdAny) void refreshFolders()
+        startUploads(incoming, idByDir)
+      } catch (err) {
+        reportFolderFailure(incoming, err)
+      }
+    },
+    [folderId, refreshFolders, reportFolderFailure, startUploads]
   )
 
   const acceptFiles = useCallback(
     (files: FileList | null) => {
       if (!files || files.length === 0) return
-      const newItems = Array.from(files).map(toUploadItem)
-      setItems((prev) => [...prev, ...newItems])
-      newItems.forEach((item) => processFile(item, false))
+      void acceptIncoming(filesFromFileList(files))
     },
-    [processFile]
+    [acceptIncoming]
   )
 
   const onDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault()
       setDragActive(false)
-      acceptFiles(e.dataTransfer.files)
+      void collectDroppedFiles(e.dataTransfer).then(acceptIncoming)
     },
-    [acceptFiles]
+    [acceptIncoming]
   )
 
   const onDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -133,11 +185,32 @@ export const UploadDropzone = ({
           Drop files here
         </span>
         <span className="text-xs text-faint">or click to browse — multiple files supported</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            folderInputRef.current?.click()
+          }}
+          className="mt-1 border border-border-strong bg-surface-3 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent"
+        >
+          Upload folder
+        </button>
         <input
           ref={inputRef}
           type="file"
           multiple
           className="hidden"
+          onChange={(e) => {
+            acceptFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        <input
+          ref={folderInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          {...({ webkitdirectory: '' } as Record<string, string>)}
           onChange={(e) => {
             acceptFiles(e.target.files)
             e.target.value = ''
@@ -151,7 +224,7 @@ export const UploadDropzone = ({
             <UploadRow
               key={item.id}
               item={item}
-              onForceUpload={() => processFile(item, true)}
+              onForceUpload={() => queueRef.current.run(() => processFile(item, true))}
               onSkip={() => updateItem(item.id, { status: 'skipped' })}
             />
           ))}
@@ -215,9 +288,10 @@ const UploadRow = ({
 
 // ── Upload pipeline helpers ──────────────────────────────────────────────────
 
-const toUploadItem = (file: File): UploadItem => ({
+const toUploadItem = (file: File, folderId: string | null): UploadItem => ({
   id: crypto.randomUUID(),
   file,
+  folderId,
   status: 'hashing',
   contentHash: null,
   duplicateOf: null,

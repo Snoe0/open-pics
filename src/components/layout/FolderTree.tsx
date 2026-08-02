@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { Folder } from '@/lib/types'
 import { createFolder, deleteFolder, renameFolder } from '@/lib/api'
-import { useLibrary } from '@/components/library/LibraryProvider'
+import { useLibrary, useSelectFolder } from '@/components/library/LibraryProvider'
 import {
   CheckIcon,
   ChevronIcon,
@@ -119,6 +119,7 @@ const FolderNode = ({
   childrenByParent: ChildrenByParent
 }) => {
   const { writable, selection, setSelection, refreshFolders } = useLibrary()
+  const selectFolder = useSelectFolder()
   const [expanded, setExpanded] = useState(false)
   const [mode, setMode] = useState<NodeMode>('view')
 
@@ -161,9 +162,9 @@ const FolderNode = ({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => setSelection(folder.id)}
+          onClick={() => selectFolder(folder.id)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') setSelection(folder.id)
+            if (event.key === 'Enter') selectFolder(folder.id)
           }}
           className={`group flex w-full cursor-pointer items-center gap-1 py-1 pr-2 text-left text-[13px] transition-colors ${
             active

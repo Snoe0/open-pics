@@ -76,7 +76,7 @@ const ClearFiltersButton = () => {
 }
 
 export const FilterRow = () => (
-  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border px-4 py-2">
+  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2">
     <TypeChips />
     <TagFilterDropdown />
     <ColorSwatches />

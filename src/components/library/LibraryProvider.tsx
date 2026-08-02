@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import type { Folder, Profile } from '@/lib/types'
 import { canWrite } from '@/lib/types'
 import type { AssetType } from '@/lib/api'
@@ -40,6 +41,20 @@ export const useLibrary = (): LibraryContextValue => {
   const value = useContext(LibraryContext)
   if (!value) throw new Error('useLibrary must be used inside <LibraryProvider>')
   return value
+}
+
+/** Selects a folder and, when not already on the library page, navigates back to it. */
+export const useSelectFolder = () => {
+  const { setSelection } = useLibrary()
+  const pathname = usePathname()
+  const router = useRouter()
+  return useCallback(
+    (selection: FolderSelection) => {
+      setSelection(selection)
+      if (pathname !== '/') router.push('/')
+    },
+    [setSelection, pathname, router]
+  )
 }
 
 const toggleInList = (list: string[], item: string): string[] =>

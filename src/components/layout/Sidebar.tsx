@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { isAdmin } from '@/lib/types'
 import { createFolder } from '@/lib/api'
-import { useLibrary } from '@/components/library/LibraryProvider'
+import { useLibrary, useSelectFolder } from '@/components/library/LibraryProvider'
 import { FolderTree } from '@/components/layout/FolderTree'
 import { UserBlock } from '@/components/layout/UserBlock'
 import { PlusIcon, UsersIcon } from '@/components/layout/icons'
@@ -46,10 +46,10 @@ const NavItem = ({
 )
 
 const Wordmark = () => (
-  <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
+  <Link href="/" className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
     <span className="block h-2.5 w-2.5 bg-accent" aria-hidden />
     <span className="text-sm font-semibold uppercase tracking-[0.3em] text-foreground">Vault</span>
-  </div>
+  </Link>
 )
 
 const NewFolderRow = ({
@@ -92,20 +92,12 @@ const AdminLinks = () => (
       <UsersIcon className="h-3.5 w-3.5" />
       Team
     </Link>
-    <Link
-      href="/errors"
-      className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
-    >
-      <span className="flex h-3.5 w-3.5 items-center justify-center text-[11px] font-bold" aria-hidden>
-        !
-      </span>
-      Errors
-    </Link>
   </div>
 )
 
 export const Sidebar = () => {
-  const { profile, writable, selection, setSelection, refreshFolders } = useLibrary()
+  const { profile, writable, selection, refreshFolders } = useLibrary()
+  const selectFolder = useSelectFolder()
   const [creatingRoot, setCreatingRoot] = useState(false)
 
   const createRootFolder = async (name: string) => {
@@ -124,11 +116,11 @@ export const Sidebar = () => {
 
       <nav className="min-h-0 flex-1 overflow-y-auto py-4">
         <SectionLabel>Library</SectionLabel>
-        <NavItem label="All assets" active={selection === null} onClick={() => setSelection(null)} />
+        <NavItem label="All assets" active={selection === null} onClick={() => selectFolder(null)} />
         <NavItem
           label="Unfiled"
           active={selection === 'root'}
-          onClick={() => setSelection('root')}
+          onClick={() => selectFolder('root')}
         />
 
         <SectionLabel

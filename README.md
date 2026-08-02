@@ -76,18 +76,17 @@ Every AI-tagged asset stores an embedding of its description + tags + filename. 
 
 ## Error tracking & cloud auto-fix
 
-Uncaught errors (browser + server) are captured automatically, deduplicated by fingerprint, and logged to the `errors` table — visible to admins at **/errors**. Each new unique error is auto-filed as a GitHub issue labeled `auto-error`, which triggers a GitHub Actions workflow where **Claude Code runs in the cloud**, diagnoses the stack trace, fixes the root cause, and opens a PR referencing the issue. **PRs are never auto-merged** — your review is the gate before anything ships.
+Uncaught errors (browser + server) are captured automatically and filed **directly as GitHub issues** labeled `auto-error` (deduplicated by a stack-trace fingerprint — one open issue per unique error). Each new issue triggers a GitHub Actions workflow where **Claude Code runs in the cloud**, diagnoses the stack trace, fixes the root cause, and opens a PR referencing the issue. **PRs are never auto-merged** — your review is the gate before anything ships. GitHub Issues are the sole error tracker; there is no in-app error UI or database table.
 
 One-time setup:
 
-1. Run [`supabase/errors.sql`](supabase/errors.sql) in the Supabase SQL editor.
-2. Add to `.env.local`: `GITHUB_REPO=Snoe0/s3-file-tagging` and `GITHUB_TOKEN=` a fine-grained PAT with **Issues: read/write** on the repo (local-dev shortcut: `gh auth token`).
-3. Install the [Claude GitHub App](https://github.com/apps/claude) on the repo (or run `/install-github-app` inside Claude Code).
-4. Generate a subscription OAuth token with `claude setup-token`, then store it as a repo secret:
+1. Add to `.env.local`: `GITHUB_REPO=Snoe0/s3-file-tagging` and `GITHUB_TOKEN=` a fine-grained PAT with **Issues: read/write** on the repo (local-dev shortcut: `gh auth token`). This token is used *by the app* to file the issues — the cloud workflow authenticates itself and needs no PAT.
+2. Install the [Claude GitHub App](https://github.com/apps/claude) on the repo (or run `/install-github-app` inside Claude Code).
+3. Generate a subscription OAuth token with `claude setup-token`, then store it as a repo secret:
    `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo Snoe0/s3-file-tagging` (paste the token when prompted).
-5. In the repo: **Settings → Actions → General → Workflow permissions** — check **"Allow GitHub Actions to create and approve pull requests"**.
+4. In the repo: **Settings → Actions → General → Workflow permissions** — check **"Allow GitHub Actions to create and approve pull requests"**.
 
-The loop: error thrown → logged + deduped → issue filed → workflow runs Claude Code → fix PR → you review & merge.
+The loop: error thrown → issue filed (deduped) → workflow runs Claude Code → fix PR → you review & merge.
 
 ## Tech
 
