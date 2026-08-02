@@ -1,0 +1,46 @@
+name: Auto-fix errors
+
+# Fires when the app auto-files an error issue (label: auto-error).
+# Claude Code runs in the cloud, diagnoses the error, and opens a fix PR.
+# PRs are never merged automatically — manual review is the deployment gate.
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  fix:
+    if: contains(github.event.issue.labels.*.name, 'auto-error')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are fixing a production error that was auto-filed as issue #${{ github.event.issue.number }}.
+
+            1. Read the issue with: gh issue view ${{ github.event.issue.number }}
+               It contains the error message, stack trace, source (client/server), and route context.
+            2. Locate the root cause in the codebase. Fix the ROOT CAUSE — no
+               try/catch band-aids that just hide the symptom.
+            3. Verify: run `npx tsc --noEmit` and ensure it passes.
+            4. Create a branch named fix/error-${{ github.event.issue.number }}, commit the fix
+               (plain commit message, no attribution footers), push it, and open a PR with:
+               gh pr create --title "fix: <short description>" --body "<explanation of root cause and fix>. Fixes #${{ github.event.issue.number }}"
+            5. Comment on the issue linking the PR.
+
+            If you cannot determine the root cause with confidence, do NOT open a speculative PR —
+            comment your analysis on the issue instead.
+          claude_args: |
+            --allowedTools "Bash(git:*),Bash(gh:*),Bash(npx:*),Bash(npm:*),Read,Write,Edit,Glob,Grep"
+        env:
+          GH_TOKEN: ${{ github.token }}
