@@ -75,24 +75,24 @@ Digital asset management tool (pics.io-inspired). Dark mode, sharp corners, slee
 Locked decisions: DB log + GitHub Issues capture; fixes by cloud Claude Code (claude-code-action using subscription OAuth token, NOT an API key); triggered when an error issue is filed; private repo under Snoe0; PRs require manual review before merge/deploy.
 
 ### Part 1 — Error capture in the app
-- [ ] `supabase/errors.sql` — `errors` table: fingerprint (unique), message, stack, source (client|server), context (url/route), count, first_seen, last_seen, status (open|issue_filed|resolved), github_issue_number; admin-only RLS
-- [ ] POST `/api/errors` — capture endpoint; fingerprint = hash(message + top stack frame); dedupe by upsert (increment count, update last_seen)
-- [ ] Client capture — small component in root layout listening to `window.onerror` + `unhandledrejection`, plus `global-error.tsx` boundary → POST /api/errors
-- [ ] Server capture — `instrumentation.ts` with Next's `onRequestError` hook → log directly to DB
-- [ ] Auto-file GitHub issue on new fingerprint (GitHub REST via `GITHUB_TOKEN` PAT env var, label `auto-error`, body = message/stack/route/count); save issue number
-- [ ] Admin Errors page `/errors` — grouped list (message, count, first/last seen, source, status, GH issue link), Resolve button; admin-only
-- [ ] Env additions: `GITHUB_TOKEN`, `GITHUB_REPO` in .env.example
+- [x] `supabase/errors.sql` — `errors` table: fingerprint (unique), message, stack, source (client|server), context (url/route), count, first_seen, last_seen, status (open|issue_filed|resolved), github_issue_number; admin-only RLS
+- [x] POST `/api/errors` — capture endpoint; fingerprint = hash(message + top stack frame); dedupe by upsert (increment count, update last_seen)
+- [x] Client capture — ErrorReporter in root layout (`window.onerror` + `unhandledrejection`) + `global-error.tsx` boundary → POST /api/errors
+- [x] Server capture — `src/instrumentation.ts` with Next's `onRequestError` hook → logs directly to DB
+- [x] Auto-file GitHub issue on new fingerprint (GitHub REST via `GITHUB_TOKEN`, label `auto-error`); issue number saved
+- [x] Admin Errors page `/errors` — grouped list with expandable stack traces, GH issue links, resolve/reopen; admin-only; sidebar link added
+- [x] Env additions: `GITHUB_TOKEN`, `GITHUB_REPO` in .env.example
 
 ### Part 2 — GitHub repo
-- [ ] Create private repo under Snoe0, commit all code (no Claude attribution per global git rules), push main
+- [x] Private repo created: https://github.com/Snoe0/s3-file-tagging — all code committed and pushed to main; `auto-error` label created
 
 ### Part 3 — Cloud auto-fix workflow
-- [ ] `.github/workflows/auto-fix-errors.yml` — on issue labeled `auto-error` → anthropics/claude-code-action with `CLAUDE_CODE_OAUTH_TOKEN` secret; prompt: diagnose from stack trace, fix root cause, open PR "Fixes #<issue>"; never auto-merge
-- [ ] User actions (documented): install Claude GitHub App on the repo; run `claude setup-token` and I add it as repo secret; create fine-grained PAT for issue filing
-- [ ] README section documenting the whole loop
+- [x] `.github/workflows/auto-fix-errors.yml` — on issue labeled `auto-error` → anthropics/claude-code-action with `CLAUDE_CODE_OAUTH_TOKEN`; injection-safe (only issue *number* interpolated); root-cause-only policy; never auto-merge
+- [x] README section documenting the whole loop + setup steps
 
 ### Review (Feature 2)
-_(pending)_
+Built 2026-08-02. tsc + build clean (20 routes). Injection-safe workflow (only numeric issue number interpolated; `auto-error` label gate).
+**User setup remaining:** (1) run supabase/errors.sql; (2) GITHUB_TOKEN + GITHUB_REPO in .env.local; (3) install Claude GitHub App on the repo; (4) `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN`; (5) enable "Allow GitHub Actions to create and approve pull requests" in repo Settings → Actions → General (my API attempt to set this was permission-blocked).
 
 ---
 
